@@ -1,0 +1,16 @@
+{
+  "version": "2.0",
+  "routeKey": "POST /tasks",
+  "rawPath": "/tasks",
+  "headers": {
+    "content-type": "application/json"
+  },
+  "requestContext": {
+    "http": {
+      "method": "POST",
+      "path": "/tasks"
+    }
+  },
+  "body": "{\"title\":\"Learn AWS Lambda\"}",
+  "isBase64Encoded": false
+}
