@@ -3,6 +3,13 @@ Transform: AWS::Serverless-2016-10-31
 
 Description: Serverless task API built with AWS SAM
 
+Parameters:
+  AuthToken:
+    Type: String
+    NoEcho: true
+    Default: local-learning-token
+    Description: Bearer token required to call the task API.
+
 Globals:
   Function:
     Runtime: python3.12
@@ -30,6 +37,10 @@ Resources:
       Environment:
         Variables:
           TASKS_TABLE: !Ref TasksTable
+          LOCAL_DYNAMODB_ENABLED: "false"
+          DYNAMODB_ENDPOINT: ""
+          AUTH_ENABLED: "true"
+          AUTH_TOKEN: !Ref AuthToken
 
       Policies:
         - DynamoDBCrudPolicy:
@@ -41,6 +52,11 @@ Resources:
           Properties:
             Path: /tasks
             Method: POST
+        ListTasks:
+          Type: HttpApi
+          Properties:
+            Path: /tasks
+            Method: GET
 
 Outputs:
   TasksTableName:
