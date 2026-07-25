@@ -81,7 +81,7 @@ sam build
 ## Run Tests
 
 ```powershell
-pytest
+python -m pytest
 ```
 
 The tests mock DynamoDB, so they do not create local or AWS resources.
