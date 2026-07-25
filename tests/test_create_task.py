@@ -40,52 +40,6 @@ def make_event(
     }
 
 
-def test_aws_dynamodb_is_default(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("LOCAL_DYNAMODB_ENABLED", raising=False)
-    monkeypatch.delenv("DYNAMODB_ENDPOINT", raising=False)
-
-    with patch.object(app.boto3, "resource") as resource:
-        app.get_dynamodb_resource()
-
-    resource.assert_called_once_with("dynamodb")
-
-
-def test_dynamodb_mode_rejects_unclear_value(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("LOCAL_DYNAMODB_ENABLED", "yes")
-
-    with pytest.raises(RuntimeError, match="must be either 'true' or 'false'"):
-        app.get_dynamodb_resource()
-
-
-def test_local_dynamodb_requires_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("LOCAL_DYNAMODB_ENABLED", "true")
-    monkeypatch.delenv("DYNAMODB_ENDPOINT", raising=False)
-
-    with pytest.raises(RuntimeError, match="DYNAMODB_ENDPOINT is not set"):
-        app.get_dynamodb_resource()
-
-
-def test_local_dynamodb_uses_explicit_endpoint(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("LOCAL_DYNAMODB_ENABLED", "true")
-    monkeypatch.setenv("DYNAMODB_ENDPOINT", "http://localhost:8000")
-    monkeypatch.setenv("AWS_REGION", "eu-north-1")
-
-    with patch.object(app.boto3, "resource") as resource:
-        app.get_dynamodb_resource()
-
-    resource.assert_called_once_with(
-        "dynamodb",
-        endpoint_url="http://localhost:8000",
-        region_name="eu-north-1",
-        aws_access_key_id="local",
-        aws_secret_access_key="local",
-    )
-
-
 def test_auth_rejects_missing_token(
     monkeypatch: pytest.MonkeyPatch,
     mock_table: MagicMock,

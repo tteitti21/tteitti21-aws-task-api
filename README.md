@@ -49,9 +49,15 @@ CloudFormation, which creates or updates the real AWS resources.
 |   `-- create_task.json
 |-- src/
 |   `-- create_task/
-|       `-- app.py
+|       |-- app.py
+|       |-- config.py
+|       `-- storage/
+|           |-- aws_dynamodb.py
+|           |-- local_dynamodb.py
+|           `-- tasks_table.py
 |-- tests/
-|   `-- test_create_task.py
+|   |-- test_create_task.py
+|   `-- test_dynamodb.py
 |-- requirements-dev.txt
 |-- samconfig.toml
 `-- template.yaml
@@ -59,6 +65,16 @@ CloudFormation, which creates or updates the real AWS resources.
 
 Generated directories such as `.venv/` and `.aws-sam/` are intentionally not
 committed.
+
+Source responsibilities are deliberately separated:
+
+- `app.py` handles HTTP events, authentication, validation, and task behavior.
+- `config.py` validates shared boolean environment variables.
+- `storage/tasks_table.py` makes the explicit local-versus-AWS choice.
+- `storage/local_dynamodb.py` owns the local endpoint and dummy credentials.
+- `storage/aws_dynamodb.py` creates the normal AWS DynamoDB resource.
+
+The request handler does not contain local endpoint or AWS resource setup.
 
 ## Requirements
 
@@ -237,9 +253,8 @@ requirements.txt file not found. Continuing the build without dependencies.
 ```
 
 The handler uses only the Python standard library and `boto3`, which is
-provided by the Lambda Python runtime. Add
-`src/create_task/requirements.txt` if third-party runtime packages are added
-later.
+provided by the Lambda Python runtime. Add `src/requirements.txt` if
+third-party runtime packages are added later.
 
 ### 7. Start The Local HTTP API
 

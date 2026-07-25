@@ -4,8 +4,8 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
-import boto3
-from boto3.resources.base import ServiceResource
+from .config import get_boolean_env
+from .storage import get_tasks_table
 
 
 def make_response(status_code: int, body: dict[str, Any]) -> dict[str, Any]:
@@ -19,49 +19,8 @@ def make_response(status_code: int, body: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def get_boolean_env(name: str, default: str = "false") -> bool:
-    value = os.getenv(name, default).strip().lower()
-
-    if value not in {"true", "false"}:
-        raise RuntimeError(f"{name} must be either 'true' or 'false'")
-
-    return value == "true"
-
-
-def local_dynamodb_enabled() -> bool:
-    return get_boolean_env("LOCAL_DYNAMODB_ENABLED")
-
-
 def auth_enabled() -> bool:
     return get_boolean_env("AUTH_ENABLED")
-
-
-def get_dynamodb_resource() -> ServiceResource:
-    """Create a DynamoDB resource for AWS or local development."""
-    if local_dynamodb_enabled():
-        endpoint_url = os.getenv("DYNAMODB_ENDPOINT")
-
-        if not endpoint_url:
-            raise RuntimeError(
-                "LOCAL_DYNAMODB_ENABLED is true, but DYNAMODB_ENDPOINT is not set"
-            )
-
-        return boto3.resource(
-            "dynamodb",
-            endpoint_url=endpoint_url,
-            region_name=os.getenv("AWS_REGION", "eu-north-1"),
-            aws_access_key_id="local",
-            aws_secret_access_key="local",
-        )
-
-    return boto3.resource("dynamodb")
-
-
-def get_tasks_table() -> Any:
-    table_name = os.environ["TASKS_TABLE"]
-    dynamodb = get_dynamodb_resource()
-
-    return dynamodb.Table(table_name)
 
 
 def get_http_method(event: dict[str, Any]) -> str:

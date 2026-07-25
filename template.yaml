@@ -31,8 +31,8 @@ Resources:
   CreateTaskFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: src/create_task/
-      Handler: app.lambda_handler
+      CodeUri: src/
+      Handler: create_task.app.lambda_handler
 
       Environment:
         Variables:
