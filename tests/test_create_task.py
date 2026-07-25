@@ -28,8 +28,10 @@ def make_event(
     method: str,
     body: str | None = None,
     headers: dict[str, str] | None = None,
+    path_parameters: dict[str, str] | None = None,
+    route_key: str | None = None,
 ) -> dict:
-    return {
+    event = {
         "requestContext": {
             "http": {
                 "method": method,
@@ -38,6 +40,14 @@ def make_event(
         "headers": headers or {},
         "body": body,
     }
+
+    if path_parameters is not None:
+        event["pathParameters"] = path_parameters
+
+    if route_key is not None:
+        event["routeKey"] = route_key
+
+    return event
 
 
 def test_auth_rejects_missing_token(
@@ -178,6 +188,7 @@ def test_create_task_protects_server_controlled_fields(
 
     assert saved_item == body
 
+
 def test_list_tasks_returns_200(mock_table: MagicMock) -> None:
     task = {
         "id": "task-1",
@@ -193,6 +204,56 @@ def test_list_tasks_returns_200(mock_table: MagicMock) -> None:
     assert response["statusCode"] == 200
     assert body == {"tasks": [task]}
     mock_table.scan.assert_called_once_with()
+
+
+def test_get_task_returns_200(mock_table: MagicMock) -> None:
+    task = {
+        "id": "task-1",
+        "title": "Learn DynamoDB",
+        "completed": False,
+        "createdAt": "2026-07-12T00:00:00+00:00",
+    }
+    mock_table.get_item.return_value = {"Item": task}
+    event = make_event(
+        "GET",
+        path_parameters={"id": "task-1"},
+        route_key="GET /tasks/{id}",
+    )
+
+    response = app.lambda_handler(event, None)
+    body = json.loads(response["body"])
+
+    assert response["statusCode"] == 200
+    assert body == task
+    mock_table.get_item.assert_called_once_with(Key={"id": "task-1"})
+    mock_table.scan.assert_not_called()
+
+
+def test_get_task_returns_404_when_missing(mock_table: MagicMock) -> None:
+    mock_table.get_item.return_value = {}
+    event = make_event(
+        "GET",
+        path_parameters={"id": "missing-task"},
+        route_key="GET /tasks/{id}",
+    )
+
+    response = app.lambda_handler(event, None)
+    body = json.loads(response["body"])
+
+    assert response["statusCode"] == 404
+    assert body == {"error": "Task not found"}
+    mock_table.get_item.assert_called_once_with(Key={"id": "missing-task"})
+
+
+def test_get_task_rejects_missing_id(mock_table: MagicMock) -> None:
+    event = make_event("GET", route_key="GET /tasks/{id}")
+
+    response = app.lambda_handler(event, None)
+    body = json.loads(response["body"])
+
+    assert response["statusCode"] == 400
+    assert body == {"error": "Task id is required"}
+    mock_table.get_item.assert_not_called()
 
 
 def test_create_task_rejects_missing_title(mock_table: MagicMock) -> None:

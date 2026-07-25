@@ -7,6 +7,7 @@ The API supports:
 
 - `POST /tasks` to create a task
 - `GET /tasks` to list tasks
+- `GET /tasks/{id}` to fetch one task
 - A simple bearer token check inside the Lambda handler
 - DynamoDB Local for development
 - AWS DynamoDB for deployed environments
@@ -332,6 +333,19 @@ Header:
   Authorization: Bearer local-learning-token
 ```
 
+### Postman: Fetch One Task
+
+Replace `{id}` with an ID returned by the create or list endpoint.
+
+```text
+Method: GET
+URL: http://127.0.0.1:3000/tasks/{id}
+Header:
+  Authorization: Bearer local-learning-token
+```
+
+The API returns the task directly, or `404` when that ID does not exist.
+
 ### curl: Create A Task
 
 PowerShell:
@@ -365,6 +379,22 @@ macOS or Linux:
 
 ```bash
 curl http://127.0.0.1:3000/tasks \
+  -H "Authorization: Bearer local-learning-token"
+```
+
+### curl: Fetch One Task
+
+PowerShell:
+
+```powershell
+curl.exe http://127.0.0.1:3000/tasks/task-id `
+  -H "Authorization: Bearer local-learning-token"
+```
+
+macOS or Linux:
+
+```bash
+curl http://127.0.0.1:3000/tasks/task-id \
   -H "Authorization: Bearer local-learning-token"
 ```
 

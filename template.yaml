@@ -57,6 +57,11 @@ Resources:
           Properties:
             Path: /tasks
             Method: GET
+        GetTask:
+          Type: HttpApi
+          Properties:
+            Path: /tasks/{id}
+            Method: GET
 
 Outputs:
   TasksTableName:

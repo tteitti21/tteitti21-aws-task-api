@@ -30,6 +30,17 @@ def get_http_method(event: dict[str, Any]) -> str:
     )
 
 
+def get_path_parameter(event: dict[str, Any], name: str) -> str | None:
+    return (event.get("pathParameters") or {}).get(name)
+
+
+def is_single_task_request(event: dict[str, Any]) -> bool:
+    route_key = event.get("routeKey")
+    path_parameters = event.get("pathParameters") or {}
+
+    return route_key == "GET /tasks/{id}" or "id" in path_parameters
+
+
 def get_header(event: dict[str, Any], name: str) -> str | None:
     headers = event.get("headers") or {}
 
@@ -96,6 +107,22 @@ def list_tasks() -> dict[str, Any]:
     return make_response(200, {"tasks": response.get("Items", [])})
 
 
+def get_task(event: dict[str, Any]) -> dict[str, Any]:
+    task_id = get_path_parameter(event, "id")
+
+    if not isinstance(task_id, str) or not task_id.strip():
+        return make_response(400, {"error": "Task id is required"})
+
+    table = get_tasks_table()
+    response = table.get_item(Key={"id": task_id.strip()})
+    task = response.get("Item")
+
+    if task is None:
+        return make_response(404, {"error": "Task not found"})
+
+    return make_response(200, task)
+
+
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     """Route task API requests."""
     if not is_authorized(event):
@@ -107,6 +134,9 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         return create_task(event)
 
     if method == "GET":
+        if is_single_task_request(event):
+            return get_task(event)
+
         return list_tasks()
 
     return make_response(405, {"error": f"Method {method} is not allowed"})
