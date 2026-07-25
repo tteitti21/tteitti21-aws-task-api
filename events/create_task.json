@@ -3,7 +3,8 @@
   "routeKey": "POST /tasks",
   "rawPath": "/tasks",
   "headers": {
-    "content-type": "application/json"
+    "content-type": "application/json",
+    "authorization": "Bearer local-learning-token"
   },
   "requestContext": {
     "http": {
