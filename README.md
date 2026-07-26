@@ -8,7 +8,8 @@ The API supports:
 - `POST /tasks` to create a task
 - `GET /tasks` to list tasks
 - `GET /tasks/{id}` to fetch one task
-- A simple bearer token check inside the Lambda handler
+- Cognito JWT authorization for the deployed API
+- A local-only learning token for SAM Local
 - DynamoDB Local for development
 - AWS DynamoDB for deployed environments
 
@@ -27,15 +28,17 @@ Postman
 Deployed to AWS:
 
 ```text
-Internet client
-  -> API Gateway
+User signs in to Cognito and receives an access token
+
+Client sends the access token
+  -> API Gateway JWT authorizer
   -> Lambda
   -> AWS DynamoDB
 ```
 
-`template.yaml` describes the Lambda, API routes, DynamoDB table, environment
-variables, and IAM permissions. `sam deploy` sends that description to
-CloudFormation, which creates or updates the real AWS resources.
+`template.yaml` describes Cognito, the JWT authorizer, Lambda, API routes,
+DynamoDB, environment variables, and IAM permissions. `sam deploy` sends that
+description to CloudFormation, which creates or updates the real AWS resources.
 
 ## Project Structure
 
@@ -43,6 +46,7 @@ CloudFormation, which creates or updates the real AWS resources.
 .
 |-- docker-compose.yml
 |-- docs/
+|   |-- cognito-authentication.md
 |   `-- local-development-commands.md
 |-- env.local.docker-network.json
 |-- env.local.json
@@ -52,6 +56,8 @@ CloudFormation, which creates or updates the real AWS resources.
 |   `-- create_task/
 |       |-- app.py
 |       |-- config.py
+|       |-- local/
+|       |   `-- auth.py
 |       `-- storage/
 |           |-- aws_dynamodb.py
 |           |-- local_dynamodb.py
@@ -69,13 +75,15 @@ committed.
 
 Source responsibilities are deliberately separated:
 
-- `app.py` handles HTTP events, authentication, validation, and task behavior.
+- `app.py` handles HTTP events, validation, routing, and task behavior.
 - `config.py` validates shared boolean environment variables.
 - `storage/tasks_table.py` makes the explicit local-versus-AWS choice.
 - `storage/local_dynamodb.py` owns the local endpoint and dummy credentials.
+- `local/auth.py` contains the local-only shared-token check.
 - `storage/aws_dynamodb.py` creates the normal AWS DynamoDB resource.
 
-The request handler does not contain local endpoint or AWS resource setup.
+The request handler does not validate Cognito JWTs. API Gateway handles deployed
+JWT validation before invoking Lambda.
 
 ## Requirements
 
@@ -294,9 +302,9 @@ sam local start-api --port 3001 --env-vars env.local.json
 
 Use `http://127.0.0.1:3001` for requests in that case.
 
-## Call The API
+## Call The Local API
 
-Local authentication is enabled with this learning token:
+Local SAM authentication is enabled with this learning token:
 
 ```text
 local-learning-token
@@ -566,9 +574,6 @@ Disable rollback: No
 Save arguments to configuration file: Yes
 ```
 
-The `AuthToken` prompt may not display typed or pasted text because the
-CloudFormation parameter uses `NoEcho: true`.
-
 After the first guided deployment, `samconfig.toml` stores the normal deployment
 choices, so later deployments can usually use:
 
@@ -580,23 +585,46 @@ sam deploy
 `sam deploy` does not read `env.local.json`. The deployed template explicitly
 sets `LOCAL_DYNAMODB_ENABLED=false`, so the deployed Lambda uses AWS DynamoDB.
 
+The deployment also creates a Cognito user pool and app client, protects every
+route with an API Gateway JWT authorizer, and outputs `ApiUrl`, `UserPoolId`,
+and `UserPoolClientId`. Follow
+[docs/cognito-authentication.md](docs/cognito-authentication.md) to create a
+test user and obtain an access token.
+
 Resources can be inspected in the AWS Console in the configured region:
 
 - CloudFormation: stack and generated resources
 - Lambda: function, logs, and environment variables
-- API Gateway: HTTP API and invoke URL
+- API Gateway: HTTP API, JWT authorizer, and invoke URL
+- Cognito: user pool, users, and app client
 - DynamoDB: table and items
 - CloudWatch: Lambda execution logs
 
-## Authentication Scope
+## Authentication
 
-The project checks a static bearer token inside the Lambda. API Gateway still
-invokes the Lambda, and the Lambda returns `401` when the token is missing or
-incorrect.
+### Local SAM
 
-This is suitable for learning but not production authentication. A production
-API should normally use an API Gateway JWT authorizer, Amazon Cognito, or
-another identity provider, and should store secrets outside source control.
+Local requests use the shared learning token from `env.local.json`. The check is
+implemented in `src/create_task/local/auth.py` and is enabled only when
+`LOCAL_AUTH_ENABLED=true`. This keeps local Postman testing independent from
+AWS Cognito.
+
+### Deployed AWS API
+
+The deployed API uses an Amazon Cognito user pool and an API Gateway JWT
+authorizer. API Gateway verifies the token signature, issuer, audience, expiry,
+and the `aws.cognito.signin.user.admin` access-token scope before Lambda runs.
+The deployed Lambda has `LOCAL_AUTH_ENABLED=false` and does not compare a shared
+secret.
+
+Use a Cognito **access token**, not the local learning token or Cognito ID
+token, when calling AWS. See
+[docs/cognito-authentication.md](docs/cognito-authentication.md) for the complete
+test-user and sign-in workflow.
+
+Authentication identifies a user, but the current DynamoDB model does not yet
+enforce task ownership. Every authenticated user can currently access every
+task.
 
 ## Troubleshooting
 
@@ -608,13 +636,21 @@ same terminal, stop SAM, and restart it.
 
 ### The API Returns `401 Unauthorized`
 
-Include:
+For local SAM, include:
 
 ```text
 Authorization: Bearer local-learning-token
 ```
 
-The header name is case-insensitive, but the token value must match exactly.
+For the deployed AWS API, obtain a fresh Cognito access token and send:
+
+```text
+Authorization: Bearer <Cognito access token>
+```
+
+Do not use the Cognito ID token or the local learning token against AWS. A
+`403` response usually means the JWT is valid but lacks the required access-token
+scope.
 
 ### The API Returns `502 Internal Server Error`
 

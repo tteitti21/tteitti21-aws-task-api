@@ -187,13 +187,13 @@ After creating tasks, the array should contain saved task objects.
 
 ## Local Authentication
 
-This project uses a simple bearer token check inside the Lambda function.
+Local SAM uses a simple bearer token check inside the Lambda function. The deployed AWS API uses a Cognito JWT authorizer instead.
 
 For local development, `env.local.json` sets:
 
 ```text
-AUTH_ENABLED=true
-AUTH_TOKEN=local-learning-token
+LOCAL_AUTH_ENABLED=true
+LOCAL_AUTH_TOKEN=local-learning-token
 ```
 
 So every Postman request needs this header:
@@ -210,7 +210,7 @@ If the header is missing or the token is wrong, the API returns:
 }
 ```
 
-This is useful for learning the request flow. For a production app, prefer API Gateway authentication such as a JWT authorizer with Amazon Cognito.
+This learning token is local-only. In AWS, API Gateway validates a Cognito access token before invoking Lambda. See `docs/cognito-authentication.md`.
 
 ## One-Line Versions
 

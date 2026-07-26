@@ -3,20 +3,53 @@ Transform: AWS::Serverless-2016-10-31
 
 Description: Serverless task API built with AWS SAM
 
-Parameters:
-  AuthToken:
-    Type: String
-    NoEcho: true
-    Default: local-learning-token
-    Description: Bearer token required to call the task API.
-
 Globals:
   Function:
     Runtime: python3.12
     Timeout: 5
     MemorySize: 128
+  HttpApi:
+    Auth:
+      Authorizers:
+        CognitoJwtAuthorizer:
+          AuthorizationScopes:
+            - aws.cognito.signin.user.admin
+          IdentitySource: "$request.header.Authorization"
+          JwtConfiguration:
+            issuer: !Sub >-
+              https://cognito-idp.${AWS::Region}.amazonaws.com/${TaskUserPool}
+            audience:
+              - !Ref TaskUserPoolClient
+      DefaultAuthorizer: CognitoJwtAuthorizer
 
 Resources:
+  TaskUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub "${AWS::StackName}-users"
+      UsernameAttributes:
+        - email
+      AutoVerifiedAttributes:
+        - email
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+          RequireUppercase: true
+
+  TaskUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref TaskUserPool
+      GenerateSecret: false
+      PreventUserExistenceErrors: ENABLED
+      ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+
   TasksTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -39,8 +72,8 @@ Resources:
           TASKS_TABLE: !Ref TasksTable
           LOCAL_DYNAMODB_ENABLED: "false"
           DYNAMODB_ENDPOINT: ""
-          AUTH_ENABLED: "true"
-          AUTH_TOKEN: !Ref AuthToken
+          LOCAL_AUTH_ENABLED: "false"
+          LOCAL_AUTH_TOKEN: ""
 
       Policies:
         - DynamoDBCrudPolicy:
@@ -64,6 +97,16 @@ Resources:
             Method: GET
 
 Outputs:
+  ApiUrl:
+    Description: URL of the JWT-protected task API
+    Value: !Sub >-
+      https://${ServerlessHttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
+  UserPoolId:
+    Description: Cognito user pool ID
+    Value: !Ref TaskUserPool
+  UserPoolClientId:
+    Description: Cognito public app client ID
+    Value: !Ref TaskUserPoolClient
   TasksTableName:
     Description: Name of the DynamoDB tasks table
     Value: !Ref TasksTable

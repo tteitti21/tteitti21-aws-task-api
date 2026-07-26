@@ -1,10 +1,9 @@
 import json
-import os
 from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
-from .config import get_boolean_env
+from .local import is_request_authorized
 from .storage import get_tasks_table
 
 
@@ -18,9 +17,6 @@ def make_response(status_code: int, body: dict[str, Any]) -> dict[str, Any]:
         "body": json.dumps(body),
     }
 
-
-def auth_enabled() -> bool:
-    return get_boolean_env("AUTH_ENABLED")
 
 
 def get_http_method(event: dict[str, Any]) -> str:
@@ -39,30 +35,6 @@ def is_single_task_request(event: dict[str, Any]) -> bool:
     path_parameters = event.get("pathParameters") or {}
 
     return route_key == "GET /tasks/{id}" or "id" in path_parameters
-
-
-def get_header(event: dict[str, Any], name: str) -> str | None:
-    headers = event.get("headers") or {}
-
-    for header_name, header_value in headers.items():
-        if header_name.lower() == name.lower():
-            return header_value
-
-    return None
-
-
-def is_authorized(event: dict[str, Any]) -> bool:
-    if not auth_enabled():
-        return True
-
-    expected_token = os.getenv("AUTH_TOKEN")
-
-    if not expected_token:
-        raise RuntimeError("AUTH_ENABLED is true, but AUTH_TOKEN is not set")
-
-    authorization = get_header(event, "Authorization")
-
-    return authorization == f"Bearer {expected_token}"
 
 
 def create_task(event: dict[str, Any]) -> dict[str, Any]:
@@ -125,7 +97,7 @@ def get_task(event: dict[str, Any]) -> dict[str, Any]:
 
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     """Route task API requests."""
-    if not is_authorized(event):
+    if not is_request_authorized(event):
         return make_response(401, {"error": "Unauthorized"})
 
     method = get_http_method(event)

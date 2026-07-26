@@ -8,12 +8,13 @@ import pytest
 os.environ["TASKS_TABLE"] = "test-tasks-table"
 
 from src.create_task import app
+from src.create_task.local import auth as local_auth
 
 
 @pytest.fixture(autouse=True)
-def disable_auth(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("AUTH_ENABLED", "false")
-    monkeypatch.delenv("AUTH_TOKEN", raising=False)
+def disable_local_auth(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LOCAL_AUTH_ENABLED", "false")
+    monkeypatch.delenv("LOCAL_AUTH_TOKEN", raising=False)
 
 
 @pytest.fixture
@@ -50,12 +51,12 @@ def make_event(
     return event
 
 
-def test_auth_rejects_missing_token(
+def test_local_auth_rejects_missing_token(
     monkeypatch: pytest.MonkeyPatch,
     mock_table: MagicMock,
 ) -> None:
-    monkeypatch.setenv("AUTH_ENABLED", "true")
-    monkeypatch.setenv("AUTH_TOKEN", "secret-token")
+    monkeypatch.setenv("LOCAL_AUTH_ENABLED", "true")
+    monkeypatch.setenv("LOCAL_AUTH_TOKEN", "secret-token")
 
     response = app.lambda_handler(make_event("GET"), None)
     body = json.loads(response["body"])
@@ -65,12 +66,12 @@ def test_auth_rejects_missing_token(
     mock_table.scan.assert_not_called()
 
 
-def test_auth_rejects_wrong_token(
+def test_local_auth_rejects_wrong_token(
     monkeypatch: pytest.MonkeyPatch,
     mock_table: MagicMock,
 ) -> None:
-    monkeypatch.setenv("AUTH_ENABLED", "true")
-    monkeypatch.setenv("AUTH_TOKEN", "secret-token")
+    monkeypatch.setenv("LOCAL_AUTH_ENABLED", "true")
+    monkeypatch.setenv("LOCAL_AUTH_TOKEN", "secret-token")
 
     response = app.lambda_handler(
         make_event("GET", headers={"Authorization": "Bearer wrong-token"}),
@@ -83,12 +84,12 @@ def test_auth_rejects_wrong_token(
     mock_table.scan.assert_not_called()
 
 
-def test_auth_allows_correct_token(
+def test_local_auth_allows_correct_token(
     monkeypatch: pytest.MonkeyPatch,
     mock_table: MagicMock,
 ) -> None:
-    monkeypatch.setenv("AUTH_ENABLED", "true")
-    monkeypatch.setenv("AUTH_TOKEN", "secret-token")
+    monkeypatch.setenv("LOCAL_AUTH_ENABLED", "true")
+    monkeypatch.setenv("LOCAL_AUTH_TOKEN", "secret-token")
     mock_table.scan.return_value = {"Items": []}
 
     response = app.lambda_handler(
@@ -100,12 +101,12 @@ def test_auth_allows_correct_token(
     mock_table.scan.assert_called_once_with()
 
 
-def test_auth_requires_configured_token(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("AUTH_ENABLED", "true")
-    monkeypatch.delenv("AUTH_TOKEN", raising=False)
+def test_local_auth_requires_configured_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LOCAL_AUTH_ENABLED", "true")
+    monkeypatch.delenv("LOCAL_AUTH_TOKEN", raising=False)
 
-    with pytest.raises(RuntimeError, match="AUTH_TOKEN is not set"):
-        app.is_authorized(make_event("GET"))
+    with pytest.raises(RuntimeError, match="LOCAL_AUTH_TOKEN is not set"):
+        local_auth.is_request_authorized(make_event("GET"))
 
 
 def test_create_task_returns_201(mock_table: MagicMock) -> None:
